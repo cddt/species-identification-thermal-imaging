@@ -30,7 +30,9 @@ X_test, y_test = load("test")
 print("Dataset loaded!")
 
 model = Sequential()
-model.add(ConvLSTM2D(filters = 64, kernel_size = (3,3), data_format = "channels_first", input_shape = (45,3,24,24)))
+for _ in range(4):
+    model.add(ConvLSTM2D(64, (3,3), return_sequences = True, data_format = "channels_first", input_shape = (45,3,24,24)))
+    model.add(BatchNormalization())
 model.add(Dropout(0.2))
 model.add(Flatten())
 model.add(Dense(256, activation="relu"))
