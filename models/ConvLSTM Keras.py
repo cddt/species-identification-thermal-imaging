@@ -19,7 +19,7 @@ def load(name):
     return X, y_one_hot_encoded
 
 epochs = 10
-batch_size = 8
+batch_size = 10
 learning_rate = 0.001
 
 # Loads the preprocessed datasets
