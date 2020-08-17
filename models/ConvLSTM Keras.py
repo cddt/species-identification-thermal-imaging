@@ -41,7 +41,7 @@ model.add(Dense(17, activation = "softmax"))
 model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
 
 # Training the model on the training set, with early stopping using the validation set
-callbacks = [EarlyStopping(patience = 7)]
+callbacks = [EarlyStopping(patience = 5)]
 history = model.fit(X_train, y_train, epochs = epochs, batch_size = batch_size, shuffle = True, validation_data = (X_val, y_val), callbacks = callbacks)
 
 # Evaluating the final model on the test set
