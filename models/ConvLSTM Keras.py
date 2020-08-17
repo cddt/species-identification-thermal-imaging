@@ -1,4 +1,4 @@
-from keras.optimizers import SGD
+from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import *
 from keras.callbacks import EarlyStopping
@@ -38,7 +38,7 @@ model.add(Flatten())
 model.add(Dense(256, activation="relu"))
 model.add(Dropout(0.3))
 model.add(Dense(17, activation = "softmax"))
-model.compile(loss='categorical_crossentropy', optimizer = SGD(lr = learning_rate), metrics=["accuracy"])
+model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
 
 # Training the model on the training set, with early stopping using the validation set
 callbacks = [EarlyStopping(patience = 7)]
