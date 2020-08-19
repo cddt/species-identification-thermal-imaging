@@ -35,8 +35,10 @@ model.add(Dropout(0.2))
 model.add(Flatten())
 model.add(Dense(256, activation="relu"))
 model.add(Dropout(0.3))
-model.add(Dense(np.unique(y_train).size, activation = "softmax"))
+model.add(Dense(y_train.shape[1], activation = "softmax"))
 model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
+
+print(model.summary())
 
 # Training the model on the training set, with early stopping using the validation set
 callbacks = [EarlyStopping(patience = 5)]
