@@ -47,7 +47,7 @@ print("Dataset loaded!")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
-model = resnet18(17, in_channels = 3).to(device)
+model = resnet18(np.unique(train_labels).size, in_channels = 3).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 criterion = nn.CrossEntropyLoss()
