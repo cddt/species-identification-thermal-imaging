@@ -14,7 +14,7 @@ def load(name):
     # Loads the videos and converts the labels into one-hot encoding for Keras
     X = np.load("./cacophony-preprocessed/" + name + ".npy")
     y = np.load("./cacophony-preprocessed/" + name + "-labels.npy")
-    y_one_hot_encoded = np.zeros([y.shape[0], 17])
+    y_one_hot_encoded = np.zeros([y.shape[0], np.unique(y).size])
     y_one_hot_encoded[range(y.shape[0]), y] = 1
     return X, y_one_hot_encoded
 
@@ -35,7 +35,7 @@ model.add(Dropout(0.2))
 model.add(Flatten())
 model.add(Dense(256, activation="relu"))
 model.add(Dropout(0.3))
-model.add(Dense(17, activation = "softmax"))
+model.add(Dense(np.unique(y_train).size, activation = "softmax"))
 model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
 
 # Training the model on the training set, with early stopping using the validation set
