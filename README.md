@@ -4,7 +4,7 @@
 ## Results
 
 |Model    |Accuracy     |Validation Accuracy|Loss|Validation Loss|Epochs  |Batch Size|??|
-|:---|:---:|:---:|:---:|:---:|:---:|
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 |ConvLSTM.py   |0.9177   |0.7113   |0.2384|1.1628|10   |32   |   |
 
 ```
