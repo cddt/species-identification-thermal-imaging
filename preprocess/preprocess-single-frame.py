@@ -25,7 +25,8 @@ test_num = 1500
 
 f = h5py.File("/home/cddt/data-space/Cacophony/data1/dataset.hdf5", "r") # Read in the dataset
 d = f[list(f.keys())[0]]                                        # Access the thermal videos key
-clips = np.zeros([10664, 1, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
+clips = np.zeros([10664, 45, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
+best_single_frames = np.zeros([10664, 1, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
 
 def get_best_index(vid):
     """
@@ -35,8 +36,8 @@ def get_best_index(vid):
     mass = np.zeros(vid.attrs['frames'])
     for f in range(vid.attrs['frames']):
         mass[f] = np.sum(vid[str(f)][4])
-#    total_mass_over_next_45 = np.cumsum(mass) - np.hstack([np.zeros(45), np.cumsum(mass[:-45])])
-    return np.argmax(mass[::-1])
+    total_mass_over_next_45 = np.cumsum(mass) - np.hstack([np.zeros(45), np.cumsum(mass[:-45])])
+    return f - np.argmax(total_mass_over_next_45[::-1]) - 44
 
 def make24x24(frame):
     """
@@ -74,11 +75,21 @@ for i in range(len(d.keys())):
         if vid.attrs['frames'] >= 45 and not tag in ["unknown", "part", "poor tracking", "sealion"]:
             labels += [tag]
             ind = get_best_index(vid)
-            frame = np.array(vid[str(ind)], dtype=np.float16)[:2]         # Read a single frame
-            frame = np.concatenate([np.expand_dims(frame[0], 0), frame], 0) # The desired 3 channels
-            frame = make24x24(frame)                                        # Interpolate the frame
-            frame = normalize(frame)                                        # Normalizes each channel
-            clips[processed, 0] = frame
+            mass = np.zeros(45)
+            for f in range(45):
+                mass[f] = np.sum(vid[str(f+ind)][4])
+#            print('best frame:',np.argmax(mass)+ind,'which is:',np.argmax(mass),'out of 45',sep = " ")
+            best_single_frame = np.array(vid[str(np.argmax(mass)+ind)], dtype=np.float16)[:2]
+            best_single_frame = np.concatenate([np.expand_dims(best_single_frame[0], 0), best_single_frame], 0)
+            best_single_frame = make24x24(best_single_frame)
+            best_single_frame = normalize(best_single_frame)
+            best_single_frames[processed, 0] = best_single_frame
+            for f in range(45):
+                frame = np.array(vid[str(f+ind)], dtype=np.float16)[:2]         # Read a single frame
+                frame = np.concatenate([np.expand_dims(frame[0], 0), frame], 0) # The desired 3 channels
+                frame = make24x24(frame)                                        # Interpolate the frame
+                frame = normalize(frame)                                        # Normalizes each channel
+                clips[processed, f] = frame
             processed += 1                   
             if processed % 100 == 0:        
                 print(processed, "clips processed!")
@@ -87,15 +98,18 @@ for i in range(len(d.keys())):
 labels = LabelEncoder().fit_transform(labels)
 
 # We extract the training, test and validation sets, with a fixed random seed for reproducibility and stratification
-clips, val_vids, labels, val_labels = train_test_split(clips, labels, test_size = validation_num, random_state = 123, stratify = labels)
-train_vids, test_vids, train_labels, test_labels = train_test_split(clips, labels, test_size = test_num, random_state = 123, stratify = labels)
+clips, val_vids, labels, val_labels, best_single_frames, val_best_single_frames = train_test_split(clips, labels, best_single_frames, test_size = validation_num, random_state = 123, stratify = labels)
+train_vids, test_vids, train_labels, test_labels, train_best_single_frames, test_best_single_frames = train_test_split(clips, labels, best_single_frames, test_size = test_num, random_state = 123, stratify = labels)
 
 # We save all of the files
-if not os.path.exists("./cacophony-preprocessed-single-frame"):
-    os.makedirs("./cacophony-preprocessed-single-frame")
-np.save("./cacophony-preprocessed-single-frame/training", train_vids)
-np.save("./cacophony-preprocessed-single-frame/validation", val_vids)
-np.save("./cacophony-preprocessed-single-frame/test", test_vids)
-np.save("./cacophony-preprocessed-single-frame/training-labels", train_labels)
-np.save("./cacophony-preprocessed-single-frame/validation-labels", val_labels)
-np.save("./cacophony-preprocessed-single-frame/test-labels", test_labels)
+if not os.path.exists("./cacophony-preprocessed"):
+    os.makedirs("./cacophony-preprocessed")
+np.save("./cacophony-preprocessed/training", train_vids)
+np.save("./cacophony-preprocessed/validation", val_vids)
+np.save("./cacophony-preprocessed/test", test_vids)
+np.save("./cacophony-preprocessed/training-labels", train_labels)
+np.save("./cacophony-preprocessed/validation-labels", val_labels)
+np.save("./cacophony-preprocessed/test-labels", test_labels)
+np.save("./cacophony-preprocessed/training-best_single_frames", train_best_single_frames)
+np.save("./cacophony-preprocessed/validation-best_single_frames", val_best_single_frames)
+np.save("./cacophony-preprocessed/test-best_single_frames", test_best_single_frames)
