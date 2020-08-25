@@ -76,6 +76,9 @@ for key, value in best_mass.items():
     
 location_list = list(filter(lambda a: a != 'missing', location_list))
 
+from collections import Counter
+locations = dict(Counter(map(tuple,location_list)))
+
 counts_tag = dict()
 for i in tag_list:
     counts_tag[i] = counts_tag.get(i, 0) + 1
@@ -105,11 +108,3 @@ for i in start_time:
 {k: v for k, v in sorted(counts_frames.items(), key=lambda item: item[1])}
 
 {k: v for k, v in sorted(counts_start.items(), key=lambda item: item[1])}
-
-location_list
-
-
-
-
-
-
