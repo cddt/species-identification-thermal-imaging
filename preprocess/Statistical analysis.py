@@ -34,6 +34,16 @@ for i in range(len(d.keys())):
         else:
             start_time.append('missing')
 
+# plot frames histogram with cut-off in red            
+%matplotlib inline
+import matplotlib.pyplot as plt
+plt.hist(frames_list, bins = 200, range = (0,1000))
+plt.axvline(x=44, color = 'red')
+plt.xlabel('Frames')
+plt.ylabel('Count')
+plt.title('')
+plt.show()
+            
 counts_tag = dict()
 for i in tag_list:
     counts_tag[i] = counts_tag.get(i, 0) + 1
