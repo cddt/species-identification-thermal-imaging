@@ -44,6 +44,9 @@ plt.xlabel('Frames')
 plt.ylabel('Count')
 plt.title('')
 plt.show()
+
+# get mean frames
+np.mean(frames_list)
             
 counts_tag = dict()
 for i in tag_list:
