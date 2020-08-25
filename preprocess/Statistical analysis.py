@@ -37,6 +37,7 @@ for i in range(len(d.keys())):
 # plot frames histogram with cut-off in red            
 %matplotlib inline
 import matplotlib.pyplot as plt
+fig, ax = plt.subplots(facecolor='white')
 plt.hist(frames_list, bins = 200, range = (0,1000))
 plt.axvline(x=44, color = 'red')
 plt.xlabel('Frames')
