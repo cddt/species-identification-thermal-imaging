@@ -23,7 +23,7 @@ Saves the pre-processed data and the labels as numpy arrays.
 validation_num = 1500
 test_num = 1500
 
-f = h5py.File("C://Users//hamis//Downloads//dataset.hdf5", "r") # Read in the dataset
+f = h5py.File("/home/cddt/data-space/Cacophony/data1/dataset.hdf5", "r") # Read in the dataset
 d = f[list(f.keys())[0]]                                        # Access the thermal videos key
 clips = np.zeros([10664, 45, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
 
@@ -62,7 +62,7 @@ def normalize(frame):
     frame[2] = np.clip(frame[2] / 400, 0, 1)
     return frame
 
-labels = []
+labels_raw = []
 processed = 0
 for i in range(len(d.keys())):
     x = d[list(d.keys())[i]]
@@ -72,7 +72,7 @@ for i in range(len(d.keys())):
         if tag == "bird/kiwi":
             tag = "bird"
         if vid.attrs['frames'] >= 45 and not tag in ["unknown", "part", "poor tracking", "sealion"]:
-            labels += [tag]
+            labels_raw += [tag]
             ind = get_best_index(vid)
             for f in range(45):
                 frame = np.array(vid[str(f+ind)], dtype=np.float16)[:2]         # Read a single frame
@@ -85,11 +85,13 @@ for i in range(len(d.keys())):
                 print(processed, "clips processed!")
 
 # We encode the labels as an integer for each class
-labels = LabelEncoder().fit_transform(labels)
+labels = LabelEncoder().fit_transform(labels_raw)
+
+labels_raw = np.array(labels_raw)
 
 # We extract the training, test and validation sets, with a fixed random seed for reproducibility and stratification
-clips, val_vids, labels, val_labels = train_test_split(clips, labels, test_size = validation_num, random_state = 123, stratify = labels)
-train_vids, test_vids, train_labels, test_labels = train_test_split(clips, labels, test_size = test_num, random_state = 123, stratify = labels)
+clips, val_vids, labels, val_labels, labels_raw, val_labels_raw = train_test_split(clips, labels, labels_raw, test_size = validation_num, random_state = 123, stratify = labels)
+train_vids, test_vids, train_labels, test_labels, train_labels_raw, test_labels_raw = train_test_split(clips, labels, labels_raw, test_size = test_num, random_state = 123, stratify = labels)
 
 # We save all of the files
 if not os.path.exists("./cacophony-preprocessed"):
@@ -100,3 +102,6 @@ np.save("./cacophony-preprocessed/test", test_vids)
 np.save("./cacophony-preprocessed/training-labels", train_labels)
 np.save("./cacophony-preprocessed/validation-labels", val_labels)
 np.save("./cacophony-preprocessed/test-labels", test_labels)
+np.save("./cacophony-preprocessed/training-labels_raw", train_labels)
+np.save("./cacophony-preprocessed/validation-labels_raw", val_labels)
+np.save("./cacophony-preprocessed/test-labels_raw", test_labels)
