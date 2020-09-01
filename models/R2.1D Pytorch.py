@@ -109,7 +109,7 @@ def validate(dataset):
         correct += (output.max(1).indices.cpu() == labels).sum().item()
     return correct
 
-def train():
+def train(epoch):
     # Performs a single epoch of training
     model.train()
     progress = 0
@@ -119,9 +119,12 @@ def train():
         loss = criterion(output, labels.to(device))
         loss.backward()
         optimizer.step()
-        #progress += batch_size
-        #if (progress / batch_size) % 100 == 0:
-        #    print("\t", round(100 * progress / len(train_labels), 1), "%", sep = "")
+
+        if i % 32 == 0:
+            print(
+                'Train Epoch: {} [{}/{} ({:.0f}%)]'.
+                format(epoch+1, i * len(labels), len(train_loader.dataset),
+                       100. * i / len(train_loader)))
 
 def test(): 
     model.eval()
@@ -158,12 +161,21 @@ train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True)
 val_loader = DataLoader(validate_data, batch_size = batch_size, shuffle = False)
 test_loader = DataLoader(test_data, batch_size = batch_size, shuffle = False)
 
+start = torch.cuda.Event(enable_timing=True)
+end = torch.cuda.Event(enable_timing=True)
+
 for i in range(epochs):
-    print("Training epoch ", i+1, "..", sep = "")
-    train()
+    start.record()
+    #print("Training epoch ", i+1, "..", sep = "")
+    train(i)
     print("Training accuracy after", i+1, "epochs:", end = " ")
     print(round(100 * validate(train_loader) / len(train_labels), 1), "%", sep = "")
     print("Validation accuracy after", i+1, "epochs:", end = " ")
     print(round(100 * validate(val_loader) / len(val_labels), 1), "%", sep = "")
-
+    end.record()
+    torch.cuda.synchronize()
+    print(
+        'Epoch {} time: {:.1f} seconds.'.
+        format(i+1, start.elapsed_time(end) / 1000)
+        )
 print("Accuracy on hold out set:", round(100 * test() / len(test_labels), 1), "%", sep = "")
