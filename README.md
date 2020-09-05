@@ -67,5 +67,7 @@ The [dimentionality reduction code](preprocess/dim_reduction.py) allows any sele
 
 ## Hyperparameter Tuning
 
+Hyperparameter tuning is done using the [Ray Tune](https://docs.ray.io/en/latest/tune/index.html) library. 
+
 ## Results
 
