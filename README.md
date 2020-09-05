@@ -35,6 +35,10 @@ The [movement preprocessing code](preprocess/preprocess-movement.py) collates in
 
 ## Data Augmentation
 
+### Video augmentation 
+
+### Movement data
+
 ## Model Design
 
 ### Using well-known image recognition architectures with and without pre-training
