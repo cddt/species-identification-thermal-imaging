@@ -1,130 +1,73 @@
 # Species Identification in Thermal Imaging
-#### Code for COMPSCI 760 group project
+Documentation for COMPSCI 760 group project
+
+## 
+
+## Preprocessing 
+
+The main [preprocessing code](preprocess/preprocess.py) loads the raw dataset.hdf5 file and performs the following operations: 
+  - Discards videos missing a usable tag.
+  - Discards videos with fewer than 45 frames.
+  - Trims the length of the videos to 45 frames.
+  - Interpolates each of the cropped frames to 24 x 24.
+  - Outputs 3 channels:
+
+    - The raw thermal values (min-max normalization)
+    - The raw thermal values (each frame normalized independently)
+    - The thermal values minus the background (min-max normalization)
+
+  - Splits the data into training, validation, and test sets. This is performed using a fixed seed for reperformability, and the size of the split is 7664/1500/1500 (72%/14%/14%). Stratification is using in the split to ensure classes are equally represented across the data sets. 
+  - Encodes the labels as integers.
+  - Saves the pre-processed data and the labels as numpy arrays.
+
+The [single-frame preprocessing code](preprocess/preprocess-single-frame.py) performs the same operations as the main preprocessing code, except it extracts only the most useful single frame from the entire video clip. 
+
+The [movement preprocessing code](preprocess/preprocess-movement.py) collates information of the movement of the cropped region, and outputs 9 normalised variables for each of the 45 frames:
+  1) Left boundary of cropped region
+  2) Upper boundary of cropped region
+  3) Right boundary of cropped region
+  4) Lower boundary of cropped region
+  5) Number of pixels above a temperature threshold (mass)
+  6) Cropped region horizontal velocity
+  7) Cropped region vertical velocity
+  8) Horizontal velocity scaled by area of cropped region
+  9) Vertical velocity scaled by area of cropped region
+
+## Data Augmentation
+
+### Video augmentation 
+
+### Movement data
+
+## Model Design
+
+### Using well-known image recognition architectures with and without pre-training
+
+#### ResNet-18 without pre-trained model
+
+#### ResNet-18 with pre-trained model (ImageNet)
+
+#### ResNet-50 without pre-trained model
+
+#### ResNet-50 with pre-trained model (ImageNet)
+
+### Using image processing model architectures
+
+#### Conv3D
+
+#### ConvLSTM
+
+#### R2.1D
+
+### Neural Architecture Search
+
+## Hidden / Latent Space Visualisation 
+
+The [dimentionality reduction code](preprocess/dim_reduction.py) allows any selected layer from any model to be visualised by calling `plot_dim_reduction(model, layer)`
+
+## Hyperparameter Tuning
+
+Hyperparameter tuning is done using the [Ray Tune](https://docs.ray.io/en/latest/tune/index.html) library. 
 
 ## Results
 
-|Model    |Accuracy     |Validation Accuracy|Loss|Validation Loss|Epochs  |Batch Size|Test Accuracy|
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-|ConvLSTM 3.py   |0.8647   |0.7360   |0.3816 |0.9329|11   |32   |0.76|
-```
-_________________________________________________________________
-Layer (type)                 Output Shape              Param #   
-=================================================================
-conv_lst_m2d (ConvLSTM2D)    (None, 45, 24, 22, 22)    23424     
-_________________________________________________________________
-dropout (Dropout)            (None, 45, 24, 22, 22)    0         
-_________________________________________________________________
-conv_lst_m2d_1 (ConvLSTM2D)  (None, 24, 20, 20)        41568     
-_________________________________________________________________
-dropout_1 (Dropout)          (None, 24, 20, 20)        0         
-_________________________________________________________________
-flatten (Flatten)            (None, 9600)              0         
-_________________________________________________________________
-dense (Dense)                (None, 256)               2457856   
-_________________________________________________________________
-dropout_2 (Dropout)          (None, 256)               0         
-_________________________________________________________________
-dense_1 (Dense)              (None, 13)                3341      
-=================================================================
-Total params: 2,526,189
-Trainable params: 2,526,189
-Non-trainable params: 0
-_________________________________________________________________
-```
-```
-              precision    recall  f1-score   support
-
-           0       0.70      0.77      0.73       123
-           1       0.59      0.49      0.54        85
-           2       0.57      0.40      0.47        10
-           3       0.93      0.95      0.94       260
-           4       0.72      0.67      0.69       147
-           5       1.00      0.50      0.67        10
-           6       0.58      0.47      0.52        30
-           7       0.85      0.46      0.60        84
-           8       0.63      0.42      0.51        52
-           9       0.57      0.71      0.63       156
-          10       0.78      0.89      0.83       424
-          11       1.00      0.22      0.36         9
-          12       0.86      0.71      0.78       110
-
-    accuracy                           0.76      1500
-   macro avg       0.75      0.59      0.64      1500
-weighted avg       0.76      0.76      0.75      1500
-
-[[ 95   2   0   1   2   0   0   0   0  11  10   0   2]
- [  2  42   1   0   6   0   2   1   1  23   6   0   1]
- [  0   2   4   0   1   0   0   0   2   1   0   0   0]
- [  2   0   0 248   0   0   7   0   0   2   0   0   1]
- [  1   2   0   1  98   0   0   1   2  12  28   0   2]
- [  0   2   0   0   0   5   0   0   1   1   1   0   0]
- [  1   0   0  10   0   0  14   0   1   3   1   0   0]
- [ 12   3   0   0   2   0   0  39   0   7  18   0   3]
- [  0   2   0   1   1   0   0   0  22   1  25   0   0]
- [  5  14   1   2   7   0   1   1   1 110  11   0   3]
- [ 11   2   1   1  18   0   0   2   5   7 376   0   1]
- [  0   0   0   1   1   0   0   0   0   3   2   2   0]
- [  7   0   0   3   1   0   0   2   0  12   7   0  78]]
-
-```
-
-|Model    |Accuracy     |Validation Accuracy|Loss|Validation Loss|Epochs  |Batch Size|Test Accuracy|
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-|ConvLSTM.py   |0.9177   |0.7113   |0.2384|1.1628|10   |32   |0.73|
-
-```
-_________________________________________________________________
-Layer (type)                 Output Shape              Param #   
-=================================================================
-conv_lst_m2d (ConvLSTM2D)    (None, 40, 22, 22)        62080     
-_________________________________________________________________
-dropout (Dropout)            (None, 40, 22, 22)        0         
-_________________________________________________________________
-flatten (Flatten)            (None, 19360)             0         
-_________________________________________________________________
-dense (Dense)                (None, 256)               4956416   
-_________________________________________________________________
-dropout_1 (Dropout)          (None, 256)               0         
-_________________________________________________________________
-dense_1 (Dense)              (None, 13)                3341      
-=================================================================
-Total params: 5,021,837
-Trainable params: 5,021,837
-Non-trainable params: 0
-_________________________________________________________________
-```
-```
-              precision    recall  f1-score   support
-
-           0       0.68      0.66      0.67       123
-           1       0.64      0.44      0.52        85
-           2       1.00      0.30      0.46        10
-           3       0.91      0.93      0.92       260
-           4       0.68      0.69      0.69       147
-           5       0.80      0.80      0.80        10
-           6       0.57      0.43      0.49        30
-           7       0.72      0.55      0.62        84
-           8       0.56      0.44      0.49        52
-           9       0.61      0.62      0.61       156
-          10       0.74      0.89      0.81       424
-          11       0.33      0.22      0.27         9
-          12       0.75      0.64      0.69       110
-
-    accuracy                           0.73      1500
-   macro avg       0.69      0.58      0.62      1500
-weighted avg       0.73      0.73      0.73      1500
-
-[[ 81   1   0   3   1   0   0   6   1   5  23   1   1]
- [  5  37   0   0   5   1   1   1   3  16  12   2   2]
- [  0   0   3   0   1   0   0   0   0   1   2   1   2]
- [  2   0   0 242   0   0   9   0   0   4   2   0   1]
- [  1   2   0   1 102   0   0   1   3   5  31   0   1]
- [  0   1   0   0   0   8   0   0   0   0   1   0   0]
- [  2   0   0   9   0   0  13   0   0   5   1   0   0]
- [  9   2   0   1   2   0   0  46   4   6  12   0   2]
- [  0   1   0   0   0   1   0   2  23   0  25   0   0]
- [  4  10   0   3  12   0   0   2   2  96  17   0  10]
- [ 13   0   0   1  20   0   0   1   5   3 377   0   4]
- [  0   2   0   1   0   0   0   0   0   2   2   2   0]
- [  3   2   0   4   6   0   0   5   0  14   6   0  70]]
-```
