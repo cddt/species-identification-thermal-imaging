@@ -1,9 +1,12 @@
 from keras.optimizers import Adam
 from keras.models import Sequential, Model
 from keras.layers import *
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
+import os
+import datetime
+from matplotlib import pyplot as plt
 
 def load(name):
     X = np.load("./cacophony-preprocessed" + name + ".npy")
@@ -59,16 +62,52 @@ outputs = GlobalAveragePooling1D()(x)
 model = Model(inputs=[vid_inputs, mvm_inputs], outputs=outputs)
 model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
 
-print(model.summary())
+# create log dir
+if not os.path.exists("./logs"):
+    os.makedirs("./logs")
+
+current_time = str(datetime.datetime.now())
+
+# csv logs based on the time
+csv_logger = CSVLogger('./logs/log_' + current_time + '.csv', append=True, separator=';')
+
+# settings for reducing the learning rate
+reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.0001, verbose = 1)
 
 # Training the model on the training set, with early stopping using the validation set
-callbacks = [EarlyStopping(patience = 7)]
+callbacks = [EarlyStopping(patience = 5), reduce_lr, csv_logger]
 history = model.fit([X_train, X_train_mvm], y_train,
                     epochs = epochs,
                     batch_size = batch_size,
                     shuffle = True,
                     validation_data = ([X_val, X_val_mvm], y_val),
                     callbacks = callbacks)
+
+# plot training history
+# two plots
+fig, (ax1, ax2) = plt.subplots(2, 1)
+
+ax1.plot(history.history['accuracy'])
+ax1.plot(history.history['val_accuracy'])
+ax1.set_title('model accuracy')
+ax1.set_ylabel('accuracy')
+ax1.set_xlabel('epoch')
+ax1.legend(['train', 'val'], loc='upper left')
+
+ax2.plot(history.history['loss'])
+ax2.plot(history.history['val_loss'])
+ax2.set_title('model loss')
+ax2.set_ylabel('loss')
+ax2.set_xlabel('epoch')
+ax2.legend(['train', 'val'], loc='upper left')
+
+fig.savefig('./logs/plot' + current_time + '.svg', format = 'svg')
+
+# evalutate accuracy on hold out set
+eval_metrics = model.evaluate([X_test, X_test_mvm], y_test, verbose = 1)
+for idx, metric in enumerate(model.metrics_names):
+    if metric == 'accuracy':
+        print(metric + ' on hold out set:', round(100 * eval_metrics[idx], 1), "%", sep = "")
 
 # Evaluating the final model on the test set
 y_pred = np.argmax(model.predict([X_test, X_test_mvm]), axis = 1)
