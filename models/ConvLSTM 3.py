@@ -55,10 +55,10 @@ current_time = str(datetime.datetime.now())
 csv_logger = CSVLogger('./logs/log_' + current_time + '.csv', append=True, separator=';')
 
 # settings for reducing the learning rate
-reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.0001, verbose = 1)
+reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 2, min_lr = 0.0001, verbose = 1)
 
 # Training the model on the training set, with early stopping using the validation set
-callbacks = [EarlyStopping(patience = 5), reduce_lr, csv_logger]
+callbacks = [EarlyStopping(patience = 7), reduce_lr, csv_logger]
 history = model.fit(X_train, y_train, epochs = epochs, batch_size = batch_size, shuffle = True, validation_data = (X_val, y_val), callbacks = callbacks)
 
 # plot training history
@@ -80,6 +80,12 @@ ax2.set_xlabel('epoch')
 ax2.legend(['train', 'val'], loc='upper left')
 
 fig.savefig('./logs/plot' + current_time + '.svg', format = 'svg')
+
+# evalutate accuracy on hold out set
+eval_metrics = model.evaluate(X_test, y_test, verbose = 1)
+for idx, metric in enumerate(model.metrics_names):
+    if metric == 'accuracy':
+        print(metric + ' on hold out set:', round(100 * eval_metrics[idx], 1), "%", sep = "")
 
 # Evaluating the final model on the test set
 y_pred = np.argmax(model.predict(X_test), axis = 1)
