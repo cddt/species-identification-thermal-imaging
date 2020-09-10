@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.utils import _triple
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import math
 
 class SpatioTemporalConv(nn.Module):
@@ -98,9 +99,7 @@ class R2Plus1DClassifier(nn.Module):
         x = self.res2plus1d(x)
         x = self.linear(x) 
         return x
-
-
-
+        
 class DataGenerator(object):
     def __init__(self, vids, labels, batch_size, flip = False, angle = 0, crop = 0, shift = 0):
         self.vids = vids
@@ -149,7 +148,9 @@ class DataGenerator(object):
             raise StopIteration
         indices = self.indices[self.index * self.batch_size:(self.index + 1) * self.batch_size]
         vids = np.array(self.vids[indices])
-        x, y = np.meshgrid(range(vids.shape[2]), range(vids.shape[3]))
+        x, y = np.meshgrid(range(112), range(112))
+        x = x*24/112
+        y = y*24/112
         if self.crop:
             x, y = self.random_zoom(vids, x, y)
         if self.angle:
@@ -162,16 +163,19 @@ class DataGenerator(object):
         y = np.clip(y, 0, vids.shape[3]-1).astype(np.int)
         vids = vids[:,:,x,y].transpose(0,1,3,2,4)
         self.index += 1
-        return torch.FloatTensor(vids.transpose(0,4,1,2,3)), self.labels[indices]
-
+        out = torch.FloatTensor(vids.transpose(0,4,1,2,3))
+        return out, self.labels[indices]
 
 def evaluate(data):
-    model.eval()
-    correct = 0
-    for imgs, labels in data:
-        output = model(imgs.to(device))
-        correct += (output.max(1).indices.cpu() == labels).sum().item()
-    return correct
+    with torch.no_grad():
+        model.eval()
+        correct = 0
+        loss = 0
+        for imgs, labels in data:
+            output = model(imgs.to(device))
+            loss += criterion(output, labels.to(device)).detach().item()
+            correct += (output.max(1).indices.cpu() == labels).sum().detach().item()
+        return correct, loss
 
 def train(epoch):
     model.train()
@@ -182,10 +186,10 @@ def train(epoch):
         loss.backward()
         optimizer.step()
         if i % 32 == 0:
-            print(i)
+            print(i, "/", train_data.max_index, sep="")
         
 epochs = 50
-batch_size = 32
+batch_size = 4
 learning_rate = 0.001
 
 print("Dataset loading..", end = " ")
@@ -200,19 +204,33 @@ print("Dataset loaded!")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 4, 4)
+train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 3, 3)
 val_data = DataGenerator(val_imgs, val_labels, batch_size)
 test_data = DataGenerator(test_imgs, test_labels, batch_size)
 model = R2Plus1DClassifier(num_classes = np.unique(train_labels).size, layer_sizes = [2, 2, 2, 2]).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
+scheduler = ReduceLROnPlateau(optimizer, 'min', factor = 0.5, patience = 3, min_lr = 0.0001, verbose = True)
 criterion = nn.CrossEntropyLoss()
 
+best_val = -1
 for i in range(epochs):
     print("Training epoch ", i+1, "..", sep = "")
     train(i)
+    print("Freeing memory...")
+    torch.cuda.empty_cache()
     print("Validation accuracy after", i+1, "epochs:", end = " ")
-    print(round(100 * evaluate(val_data) / len(val_labels), 1), "%", sep = "")
+    a, b = evaluate(val_data)
+    print(round(100 * a / len(val_labels), 1), "%", sep = "")
+    if a > best_val:
+        best_val = a
+        best_epoch = i+1
+        best_model = model.state_dict()
+    scheduler.step(b)
+    print("Freeing memory...")
+    torch.cuda.empty_cache()
 
+print("Loading best model from epoch", best_epoch)
+model.load_state_dict(best_model)
 print("Hold-out accuracy after", i+1, "epochs:", end = " ")
-print(round(100 * evaluate(test_data) / len(test_labels), 1), "%", sep = "")
+print(round(100 * evaluate(test_data)[0] / len(test_labels), 1), "%", sep = "")
