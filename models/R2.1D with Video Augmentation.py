@@ -100,7 +100,7 @@ class R2Plus1DClassifier(nn.Module):
         x = self.linear(x) 
         return x
         
-class DataGenerator(object):
+class DataGenerator(torch.utils.data.Dataset): # inherits torch.utils.data.Dataset class
     def __init__(self, vids, labels, batch_size, flip = False, angle = 0, crop = 0, shift = 0):
         self.vids = vids
         self.labels = labels
