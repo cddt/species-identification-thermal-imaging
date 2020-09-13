@@ -5,6 +5,9 @@ from torch.nn.modules.utils import _triple
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import math
+import os
+import datetime
+from matplotlib import pyplot as plt
 
 class SpatioTemporalConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
@@ -100,7 +103,7 @@ class R2Plus1DClassifier(nn.Module):
         x = self.linear(x) 
         return x
         
-class DataGenerator(torch.utils.data.Dataset): # inherits torch.utils.data.Dataset class
+class DataGenerator(torch.utils.data.Dataset):
     def __init__(self, vids, labels, batch_size, flip = False, angle = 0, crop = 0, shift = 0):
         self.vids = vids
         self.labels = labels
@@ -173,7 +176,7 @@ def evaluate(data):
         loss = 0
         for imgs, labels in data:
             output = model(imgs.to(device))
-            loss += criterion(output, labels.to(device)).detach().item()
+            loss += criterion(output, labels.to(device)).detach().item() * imgs.size(0)
             correct += (output.max(1).indices.cpu() == labels).sum().detach().item()
         return correct, loss
 
@@ -188,7 +191,7 @@ def train(epoch):
         if i % 32 == 0:
             print(i, "/", train_data.max_index, sep="")
         
-epochs = 50
+epochs = 20
 batch_size = 4
 learning_rate = 0.001
 
@@ -204,24 +207,43 @@ print("Dataset loaded!")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 3, 3)
+train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 3, 0)
 val_data = DataGenerator(val_imgs, val_labels, batch_size)
 test_data = DataGenerator(test_imgs, test_labels, batch_size)
 model = R2Plus1DClassifier(num_classes = np.unique(train_labels).size, layer_sizes = [2, 2, 2, 2]).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
-scheduler = ReduceLROnPlateau(optimizer, 'min', factor = 0.5, patience = 3, min_lr = 0.0001, verbose = True)
+scheduler = ReduceLROnPlateau(optimizer, 'min', factor = 0.2, patience = 3, min_lr = 0.00001, verbose = True)
 criterion = nn.CrossEntropyLoss()
 
 best_val = -1
+
+train_acc = []
+train_loss = []
+val_acc = []
+val_loss = []
+
 for i in range(epochs):
     print("Training epoch ", i+1, "..", sep = "")
     train(i)
     print("Freeing memory...")
     torch.cuda.empty_cache()
+    print("Checking training accuracy...")
+    a_train, b_train = evaluate(train_data) # train accuracy and loss
+    train_acc.append(a_train / len(train_labels))
+    train_loss.append(b_train / len(train_labels))
+    print("Training accuracy after", i+1, "epochs:", end = " ")
+    print(round(100 * a_train / len(train_labels), 1), "%", sep = "")
+    print("Training loss after", i+1, "epochs:", end = " ")
+    print(round(b_train / len(train_labels), 3), sep = "")
+    print("Checking validation accuracy...")
+    a, b = evaluate(val_data) # validation accuracy and loss
+    val_acc.append(a / len(val_labels))
+    val_loss.append(b / len(val_labels))
     print("Validation accuracy after", i+1, "epochs:", end = " ")
-    a, b = evaluate(val_data)
     print(round(100 * a / len(val_labels), 1), "%", sep = "")
+    print("Validation loss after", i+1, "epochs:", end = " ")
+    print(round(b / len(val_labels), 3), sep = "")
     if a > best_val:
         best_val = a
         best_epoch = i+1
@@ -230,7 +252,34 @@ for i in range(epochs):
     print("Freeing memory...")
     torch.cuda.empty_cache()
 
+# create log dir
+if not os.path.exists("./logs"):
+    os.makedirs("./logs")
+
+current_time = str(datetime.datetime.now())
+
+# plot training history
+# two plots
+fig, (ax1, ax2) = plt.subplots(2, 1)
+
+ax1.plot(train_acc)
+ax1.plot(val_acc)
+ax1.set_title('model accuracy')
+ax1.set_ylabel('accuracy')
+ax1.set_xlabel('epoch')
+ax1.legend(['train', 'val'], loc='upper left')
+
+ax2.plot(train_loss)
+ax2.plot(val_loss)
+ax2.set_title('model loss')
+ax2.set_ylabel('loss')
+ax2.set_xlabel('epoch')
+ax2.legend(['train', 'val'], loc='upper left')
+
+fig.savefig('./logs/plot' + current_time + '.svg', format = 'svg')
+
 print("Loading best model from epoch", best_epoch)
 model.load_state_dict(best_model)
+torch.save(model.state_dict(), './logs/best_model_' + current_time + '.pt')
 print("Hold-out accuracy after", i+1, "epochs:", end = " ")
 print(round(100 * evaluate(test_data)[0] / len(test_labels), 1), "%", sep = "")
