@@ -208,6 +208,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
 train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 3, 0)
+train_data_orig = DataGenerator(train_imgs, train_labels, batch_size)
 val_data = DataGenerator(val_imgs, val_labels, batch_size)
 test_data = DataGenerator(test_imgs, test_labels, batch_size)
 model = R2Plus1DClassifier(num_classes = np.unique(train_labels).size, layer_sizes = [2, 2, 2, 2]).to(device)
@@ -229,7 +230,7 @@ for i in range(epochs):
     print("Freeing memory...")
     torch.cuda.empty_cache()
     print("Checking training accuracy...")
-    a_train, b_train = evaluate(train_data) # train accuracy and loss
+    a_train, b_train = evaluate(train_data_orig) # train accuracy and loss
     train_acc.append(a_train / len(train_labels))
     train_loss.append(b_train / len(train_labels))
     print("Training accuracy after", i+1, "epochs:", end = " ")
