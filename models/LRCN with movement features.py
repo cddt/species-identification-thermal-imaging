@@ -7,6 +7,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 import os
 import datetime
 from matplotlib import pyplot as plt
+from keras.utils import plot_model
 
 def load(name):
     X = np.load("./cacophony-preprocessed" + name + ".npy")
@@ -67,6 +68,8 @@ if not os.path.exists("./logs"):
     os.makedirs("./logs")
 
 current_time = str(datetime.datetime.now())
+
+plot_model(model, to_file='./logs/model_' + current_time + '.png', show_shapes=True)
 
 # csv logs based on the time
 csv_logger = CSVLogger('./logs/log_' + current_time + '.csv', append=True, separator=';')

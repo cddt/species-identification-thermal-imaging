@@ -74,7 +74,7 @@ class SpatioTemporalResLayer(nn.Module):
         return x
 
 class R2Plus1DNet(nn.Module):
-    def __init__(self, layer_sizes, block_type=SpatioTemporalResBlock):
+    def __init__(self, layer_sizes, block_type=SpatioTemporalResBlock, p = 0.2):
         super(R2Plus1DNet, self).__init__()
         self.conv1 = SpatioTemporalConv(3, 64, [3, 7, 7], stride=[1, 2, 2], padding=[1, 3, 3])
         self.conv2 = SpatioTemporalResLayer(64, 64, 3, layer_sizes[0], block_type=block_type)
@@ -82,20 +82,27 @@ class R2Plus1DNet(nn.Module):
         self.conv4 = SpatioTemporalResLayer(128, 256, 3, layer_sizes[2], block_type=block_type, downsample=True)
         self.conv5 = SpatioTemporalResLayer(256, 512, 3, layer_sizes[3], block_type=block_type, downsample=True)
         self.pool = nn.AdaptiveAvgPool3d(1)
+        # define dropout layer in __init__
+        self.drop_layer = nn.Dropout(p = p)
     
     def forward(self, x):
         x = self.conv1(x)
+        x = self.drop_layer(x)
         x = self.conv2(x)
+        x = self.drop_layer(x)
         x = self.conv3(x)
+        x = self.drop_layer(x)
         x = self.conv4(x)
+        x = self.drop_layer(x)
         x = self.conv5(x)
+        x = self.drop_layer(x)
         x = self.pool(x)
         return x.view(-1, 512)
 
 class R2Plus1DClassifier(nn.Module):
-    def __init__(self, num_classes, layer_sizes, block_type=SpatioTemporalResBlock):
+    def __init__(self, num_classes, layer_sizes, block_type=SpatioTemporalResBlock, p = 0.2):
         super(R2Plus1DClassifier, self).__init__()
-        self.res2plus1d = R2Plus1DNet(layer_sizes, block_type)
+        self.res2plus1d = R2Plus1DNet(layer_sizes, block_type, p = p)
         self.linear = nn.Linear(512, num_classes)
 
     def forward(self, x):
@@ -211,10 +218,10 @@ train_data = DataGenerator(train_imgs, train_labels, batch_size, True, 10, 3, 0)
 train_data_orig = DataGenerator(train_imgs, train_labels, batch_size)
 val_data = DataGenerator(val_imgs, val_labels, batch_size)
 test_data = DataGenerator(test_imgs, test_labels, batch_size)
-model = R2Plus1DClassifier(num_classes = np.unique(train_labels).size, layer_sizes = [2, 2, 2, 2]).to(device)
+model = R2Plus1DClassifier(num_classes = np.unique(train_labels).size, layer_sizes = [2, 2, 2, 2], p = 0.2).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
-scheduler = ReduceLROnPlateau(optimizer, 'min', factor = 0.2, patience = 3, min_lr = 0.00001, verbose = True)
+scheduler = ReduceLROnPlateau(optimizer, 'min', factor = 0.5, patience = 3, min_lr = 0.000001, verbose = True)
 criterion = nn.CrossEntropyLoss()
 
 best_val = -1
