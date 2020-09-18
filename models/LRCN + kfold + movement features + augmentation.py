@@ -20,25 +20,6 @@ def load(name):
     y_one_hot_encoded[range(y.shape[0]), y] = 1
     return X, y_one_hot_encoded
 
-epochs = 3
-batch_size = 32
-learning_rate = 0.001
-
-print("Dataset loading..", end = " ")
-# Loading the preprocessed videos
-X_train, y_train = load("/training")
-X_val, y_val = load("/validation")
-X_test, y_test = load("/test")
-# Since Keras likes the channels first data format
-X_train = X_train.transpose(0,1,3,4,2)
-X_val = X_val.transpose(0,1,3,4,2)
-X_test = X_test.transpose(0,1,3,4,2)
-# Loading the preprocessed movement features
-X_train_mvm, _ = load("-movement/training")
-X_val_mvm, _ = load("-movement/validation")
-X_test_mvm, _ = load("-movement/test")
-print("Dataset loaded!")
-
 def define_model_LRCN():
 
     compactCNN = Sequential()
@@ -155,7 +136,24 @@ class DataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indices)
 
+epochs = 2
+batch_size = 32
+learning_rate = 0.001
 
+print("Dataset loading..", end = " ")
+# Loading the preprocessed videos
+X_train, y_train = load("/training")
+X_val, y_val = load("/validation")
+X_test, y_test = load("/test")
+# Since Keras likes the channels first data format
+X_train = X_train.transpose(0,1,3,4,2)
+X_val = X_val.transpose(0,1,3,4,2)
+X_test = X_test.transpose(0,1,3,4,2)
+# Loading the preprocessed movement features
+X_train_mvm, _ = load("-movement/training")
+X_val_mvm, _ = load("-movement/validation")
+X_test_mvm, _ = load("-movement/test")
+print("Dataset loaded!")
 
 current_time = str(datetime.datetime.now())
 
@@ -175,47 +173,78 @@ X_train_mvm2 = np.concatenate((X_train_mvm, X_val_mvm))
 y_train2 = np.concatenate((y_train, y_val))
 
 # collect out of sample predictions
-data_x, data_mvm, data_y, preds_lrcn = list(), list(), list(), list()
+#data_x, data_mvm, data_y, preds_lrcn = list(), list(), list(), list()
 
 kfold = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 12345)
 
-for fold, (train_idx, val_idx) in enumerate(kfold.split(X = np.zeros(X_train2.shape[0]), y = y_train2.argmax(1))): # because split returns incidies we only need one
-    # csv logs based on the time
-    csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) + '.csv', append=True, separator=';')
-    callbacks = [EarlyStopping(patience = 5), reduce_lr, csv_logger]
-    # get data
-    X_train, X_train_mvm, y_train = X_train2[train_idx], X_train_mvm2[train_idx], y_train2[train_idx]
-    X_val, X_val_mvm, y_val = X_train2[val_idx], X_train_mvm2[val_idx], y_train2[val_idx]
-    train_data = DataGenerator(X_train, X_train_mvm, y_train, batch_size, True, 10, 0, 0)
-    val_data = DataGenerator(X_val, X_val_mvm, y_val, batch_size)
-    data_x.extend(X_val)
-    data_mvm.extend(X_val_mvm)
-    data_y.extend(y_val)
-    # fit model
-    print('Training fold ' + str(fold + 1) + ' of LRCN with augmentation...')
-    model = define_model_LRCN()
-    history = model.fit(train_data,
-          epochs = epochs,
-          validation_data = val_data,
-          callbacks = callbacks)
-    preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
-    preds_lrcn.extend(preds)
-    plots(history)
-    gc.collect()
+def get_models():
+    models = dict()
+    models['LRCN-small'] = define_model_LRCN()
+    return models
 
-def create_meta_dataset(data_x, preds_lrcn):#, yhat2):
-	# convert to columns
-	preds_lrcn = np.array(preds_lrcn).reshape((len(preds_lrcn), 1))
+def evaluate_model(model):
+    model_accuracy = []
+    for fold, (train_idx, val_idx) in enumerate(kfold.split(X = np.zeros(X_train2.shape[0]), y = y_train2.argmax(1))): # because split returns incidies we only need one
+        # csv logs based on the time
+        csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) + '.csv', append=True, separator=';')
+        callbacks = [EarlyStopping(patience = 5), reduce_lr, csv_logger]
+        # get data
+        X_train, X_train_mvm, y_train = X_train2[train_idx], X_train_mvm2[train_idx], y_train2[train_idx]
+        X_val, X_val_mvm, y_val = X_train2[val_idx], X_train_mvm2[val_idx], y_train2[val_idx]
+        train_data = DataGenerator(X_train, X_train_mvm, y_train, batch_size, True, 10, 0, 0)
+        val_data = DataGenerator(X_val, X_val_mvm, y_val, batch_size)
+    #    data_x.extend(X_val)
+    #    data_mvm.extend(X_val_mvm)
+    #    data_y.extend(y_val)
+        # fit model
+        print('Training fold ' + str(fold + 1) + ' of LRCN with augmentation...')
+    #   model = define_model_LRCN()
+        history = model.fit(train_data,
+              epochs = epochs,
+              validation_data = val_data,
+              callbacks = callbacks)
+        model_accuracy.append(history.history['val_accuracy'])
+        #preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
+        #preds_lrcn.extend(preds)
+        plots(history)
+        gc.collect()
+    return model_accuracy
+
+models = get_models()
+
+results, names = list(), list()
+
+for name, model in models.items():
+    val_acc = evaluate_model(model)
+    results.append(val_acc)
+    names.append(name)
+    print('>%s %.3f (%.3f)' % (name, mean(scores), std(scores)))
+
+plt.boxplot(results, labels=names, showmeans=True)
+plt.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
+
+
+
+stopstopstop
+
+
+
+def create_meta_dataset(preds_lrcn):#, yhat2):
+    # convert to columns
+    preds_lrcn = np.array(preds_lrcn).reshape((len(preds_lrcn), 1))
+    meta_X = preds_lrcn
+    return meta_X
+
+
 #	yhat2 = array(yhat2).reshape((len(yhat2), 1))
 	# stack as separate columns
-	meta_X = np.hstack((data_x, preds_lrcn))#, yhat2))
-	return meta_X
+#	meta_X = np.hstack((preds_lrcn))#, yhat2))
 
-meta_X = create_meta_dataset(data_x, preds_lrcn)#, cart_yhat)
+meta_X = create_meta_dataset(preds_lrcn)#, cart_yhat)
 
 # fit final submodels
 model_LRCN = define_model_LRCN()
-history = model.fit(DataGenerator(X_train2, X_train_mvm2, y_train2, batch_size, True, 10, 0, 0),
+history = model_LRCN.fit(DataGenerator(X_train2, X_train_mvm2, y_train2, batch_size, True, 10, 0, 0),
           epochs = epochs,
           #validation_data = val_data,
           callbacks = callbacks)
@@ -230,7 +259,7 @@ def stack_prediction(model1_lrcn, meta_model, X):#stack_prediction(model1, model
 	preds1 = model1_lrcn.predict(X, batch_size = batch_size)[:, 0]
 	#yhat2 = model2.predict_proba(X)[:, 0]
 	# create input dataset
-	meta_X = create_meta_dataset(X, preds1)
+	meta_X = create_meta_dataset(preds1)
 	# predict
 	return meta_model.predict(meta_X, batch_size = batch_size)
 
