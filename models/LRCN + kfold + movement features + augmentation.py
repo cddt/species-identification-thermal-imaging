@@ -199,6 +199,7 @@ def evaluate_model(model):
         # fit model
         print('Training fold ' + str(fold + 1) + ' of LRCN with augmentation...')
     #   model = define_model_LRCN()
+        model.save_weights('model.h5')
         history = model.fit(train_data,
               epochs = epochs,
               validation_data = val_data,
@@ -207,7 +208,7 @@ def evaluate_model(model):
         #preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
         #preds_lrcn.extend(preds)
         plots(history)
-        model.reset_states()
+        model.load_weights('model.h5')
         gc.collect()
     return model_accuracy
 
@@ -219,7 +220,7 @@ for name, model in models.items():
     val_acc = evaluate_model(model)
     results.append(val_acc)
     names.append(name)
-    print('>%s %.3f (%.3f)' % (name, np.mean(results), np.std(results)))
+    print(np.mean(results), np.std(results), sep = " ")
 
 plt.boxplot(results, labels=names, showmeans=True)
 plt.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
