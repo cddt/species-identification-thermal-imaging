@@ -136,7 +136,7 @@ class DataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indices)
 
-epochs = 2
+epochs = 1
 batch_size = 32
 learning_rate = 0.001
 
@@ -219,7 +219,7 @@ for name, model in models.items():
     val_acc = evaluate_model(model)
     results.append(val_acc)
     names.append(name)
-    print('>%s %.3f (%.3f)' % (name, np.mean(scores), np.std(scores)))
+    print('>%s %.3f (%.3f)' % (name, np.mean(results), np.std(results)))
 
 plt.boxplot(results, labels=names, showmeans=True)
 plt.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
