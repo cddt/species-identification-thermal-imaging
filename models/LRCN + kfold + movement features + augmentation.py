@@ -207,6 +207,7 @@ def evaluate_model(model):
         #preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
         #preds_lrcn.extend(preds)
         plots(history)
+        model.reset_states()
         gc.collect()
     return model_accuracy
 
@@ -218,7 +219,7 @@ for name, model in models.items():
     val_acc = evaluate_model(model)
     results.append(val_acc)
     names.append(name)
-    print('>%s %.3f (%.3f)' % (name, mean(scores), std(scores)))
+    print('>%s %.3f (%.3f)' % (name, np.mean(scores), np.std(scores)))
 
 plt.boxplot(results, labels=names, showmeans=True)
 plt.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
