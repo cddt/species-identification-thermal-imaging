@@ -9,6 +9,9 @@ import os
 import datetime
 from matplotlib import pyplot as plt
 from sklearn.model_selection import StratifiedKFold
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+import gc
 
 def load(name):
     X = np.load("./cacophony-preprocessed" + name + ".npy")
@@ -17,7 +20,7 @@ def load(name):
     y_one_hot_encoded[range(y.shape[0]), y] = 1
     return X, y_one_hot_encoded
 
-epochs = 50
+epochs = 3
 batch_size = 32
 learning_rate = 0.001
 
@@ -36,7 +39,7 @@ X_val_mvm, _ = load("-movement/validation")
 X_test_mvm, _ = load("-movement/test")
 print("Dataset loaded!")
 
-def define_model():
+def define_model_LRCN():
 
     compactCNN = Sequential()
     compactCNN.add(Conv2D(32, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
@@ -162,7 +165,6 @@ if not os.path.exists("./logs/kfold" + current_time):
 
 #plot_model(model, to_file='./logs/kfold' + current_time + '/model_' + current_time + '.png', show_shapes=True)
 
-
 reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.00001, verbose = 1)
 
 # for k-fold we want to use both train and validation data to generate the folds
@@ -173,7 +175,7 @@ X_train_mvm2 = np.concatenate((X_train_mvm, X_val_mvm))
 y_train2 = np.concatenate((y_train, y_val))
 
 # collect out of sample predictions
-data_x, data_mvm, data_y, yhat = list(), list(), list(), list()
+data_x, data_mvm, data_y, preds_lrcn = list(), list(), list(), list()
 
 kfold = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 12345)
 
@@ -190,13 +192,58 @@ for fold, (train_idx, val_idx) in enumerate(kfold.split(X = np.zeros(X_train2.sh
     data_mvm.extend(X_val_mvm)
     data_y.extend(y_val)
     # fit model
-    model = define_model()
+    print('Training fold ' + str(fold + 1) + ' of LRCN with augmentation...')
+    model = define_model_LRCN()
     history = model.fit(train_data,
           epochs = epochs,
           validation_data = val_data,
           callbacks = callbacks)
-    preds = model.predict_proba([X_val, X_val_mvm])[:, 0]
+    preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
+    preds_lrcn.extend(preds)
     plots(history)
+    gc.collect()
+
+def create_meta_dataset(data_x, preds_lrcn):#, yhat2):
+	# convert to columns
+	preds_lrcn = np.array(preds_lrcn).reshape((len(preds_lrcn), 1))
+#	yhat2 = array(yhat2).reshape((len(yhat2), 1))
+	# stack as separate columns
+	meta_X = np.hstack((data_x, preds_lrcn))#, yhat2))
+	return meta_X
+
+meta_X = create_meta_dataset(data_x, preds_lrcn)#, cart_yhat)
+
+# fit final submodels
+model_LRCN = define_model_LRCN()
+history = model.fit(DataGenerator(X_train2, X_train_mvm2, y_train2, batch_size, True, 10, 0, 0),
+          epochs = epochs,
+          #validation_data = val_data,
+          callbacks = callbacks)
+
+# meta classifier
+meta_model = LogisticRegression(solver='liblinear')
+meta_model.fit(meta_X, data_y)
+
+# make predictions with stacked model
+def stack_prediction(model1_lrcn, meta_model, X):#stack_prediction(model1, model2, meta_model, X):
+	# make predictions
+	preds1 = model1_lrcn.predict(X, batch_size = batch_size)[:, 0]
+	#yhat2 = model2.predict_proba(X)[:, 0]
+	# create input dataset
+	meta_X = create_meta_dataset(X, preds1)
+	# predict
+	return meta_model.predict(meta_X, batch_size = batch_size)
+
+# evaluate sub models on hold out dataset
+acc1 = accuracy_score(y_test, model_LRCN.predict(X_test))
+#acc2 = accuracy_score(y_val, model2.predict(X_val))
+#print('Model1 Accuracy: %.3f, Model2 Accuracy: %.3f' % (acc1, acc2))
+print('Model LRCN Accuracy: %.3f' % (acc1))
+# evaluate meta model on hold out dataset
+#yhat = stack_prediction(model1, model2, meta_model, X_val)
+yhat = stack_prediction(model_lrcn, meta_model, X_test)
+acc = accuracy_score(y_test, yhat)
+print('Meta Model Accuracy: %.3f' % (acc))
 
 
 
