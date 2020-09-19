@@ -2,7 +2,7 @@ from keras.optimizers import Adam
 from keras.models import Sequential, Model
 from keras.layers import *
 from keras.utils import Sequence, plot_model
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger, ModelCheckpoint
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 import os
@@ -20,15 +20,15 @@ def load(name):
     y_one_hot_encoded[range(y.shape[0]), y] = 1
     return X, y_one_hot_encoded
 
-def define_model_LRCN():
+def define_model_LRCN(h_1, h_2, d_1, d_2):
 
     compactCNN = Sequential()
-    compactCNN.add(Conv2D(32, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
+    compactCNN.add(Conv2D(h_1, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
     compactCNN.add(MaxPooling2D(pool_size=(2,2)))
-    compactCNN.add(Conv2D(64, kernel_size=(3,3), activation="relu"))
+    compactCNN.add(Conv2D(h_2, kernel_size=(3,3), activation="relu"))
     compactCNN.add(MaxPooling2D(pool_size=(2,2)))
     compactCNN.add(Flatten())
-    compactCNN.add(Dropout(0.5))
+    compactCNN.add(Dropout(d_1))
     compactCNN.add(Dense(512, activation = "relu"))
 
     MLP = Sequential()
@@ -40,7 +40,7 @@ def define_model_LRCN():
     # CNN extracts 512 video features for each frame
     vid_features = TimeDistributed(compactCNN)(vid_inputs)
     # LSTM extracts 512 movement features for each frame
-    mvm_features = LSTM(512, return_sequences=True, dropout=0.5)(mvm_inputs)
+    mvm_features = LSTM(512, return_sequences=True, dropout=d_2)(mvm_inputs)
     # Concatenating for 1024 features for each frame
     x = Concatenate()([vid_features, mvm_features])
     # MLP makes a classification for each frame
@@ -48,7 +48,40 @@ def define_model_LRCN():
     # Outputting the mean classification of all frames
     outputs = GlobalAveragePooling1D()(x)
     model = Model(inputs=[vid_inputs, mvm_inputs], outputs=outputs)
-    model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
+
+    return model
+
+def define_model_LRCN_double(h_1, h_2, d_1, d_2, d_3 = 0):
+
+    compactCNN = Sequential()
+    compactCNN.add(Conv2D(h_1, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
+    compactCNN.add(Conv2D(h_1, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
+    compactCNN.add(MaxPooling2D(pool_size=(2,2)))
+    compactCNN.add(Dropout(d_1))
+    compactCNN.add(Conv2D(h_2, kernel_size=(3,3), activation="relu"))
+    compactCNN.add(Conv2D(h_2, kernel_size=(3,3), activation="relu"))
+    compactCNN.add(MaxPooling2D(pool_size=(2,2)))
+    compactCNN.add(Flatten())
+    compactCNN.add(Dropout(d_1))
+    compactCNN.add(Dense(512, activation = "relu"))
+
+    MLP = Sequential()
+    MLP.add(Dense(128, activation = "relu"))
+    MLP.add(Dense(13, activation="softmax"))
+
+    vid_inputs = Input((45, 24, 24, 3))
+    mvm_inputs = Input((45, 9))
+    # CNN extracts 512 video features for each frame
+    vid_features = TimeDistributed(compactCNN)(vid_inputs)
+    # LSTM extracts 512 movement features for each frame
+    mvm_features = LSTM(512, return_sequences=True, dropout=d_2, recurrent_dropout = d_3)(mvm_inputs)
+    # Concatenating for 1024 features for each frame
+    x = Concatenate()([vid_features, mvm_features])
+    # MLP makes a classification for each frame
+    x = TimeDistributed(MLP)(x)
+    # Outputting the mean classification of all frames
+    outputs = GlobalAveragePooling1D()(x)
+    model = Model(inputs=[vid_inputs, mvm_inputs], outputs=outputs)
 
     return model
 
@@ -136,7 +169,7 @@ class DataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indices)
 
-epochs = 1
+epochs = 100
 batch_size = 32
 learning_rate = 0.001
 
@@ -163,7 +196,7 @@ if not os.path.exists("./logs/kfold" + current_time):
 
 #plot_model(model, to_file='./logs/kfold' + current_time + '/model_' + current_time + '.png', show_shapes=True)
 
-reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.00001, verbose = 1)
+
 
 # for k-fold we want to use both train and validation data to generate the folds
 # holdout stays apart
@@ -179,15 +212,35 @@ kfold = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 12345)
 
 def get_models():
     models = dict()
-    models['LRCN-small'] = define_model_LRCN()
+    models['LRCN-small'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-medium'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-large'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-extralarge'] = define_model_LRCN(h_1 = 256, h_2 = 512, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-small'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-medium'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-large'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-extralarge'] = define_model_LRCN(h_1 = 256, h_2 = 512, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-small, no LSTM dropout'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0)
+    models['LRCN-medium, no LSTM dropout'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0)
+    models['LRCN-large, no LSTM dropout'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0)
+    models['LRCN-small, double layers'] = define_model_LRCN_double(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-medium, double layers'] = define_model_LRCN_double(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-large, double layers'] = define_model_LRCN_double(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5)
+    models['LRCN-small, double layers, less dropout'] = define_model_LRCN_double(h_1 = 32, h_2 = 64, d_1 = 0.1, d_2 = 0.2)
+    models['LRCN-medium, double layers, less dropout'] = define_model_LRCN_double(h_1 = 64, h_2 = 128, d_1 = 0.1, d_2 = 0.2)
+    models['LRCN-large, double layers, less dropout'] = define_model_LRCN_double(h_1 = 128, h_2 = 256, d_1 = 0.1, d_2 = 0.2)
     return models
 
-def evaluate_model(model):
+def evaluate_model(model, name):
     model_accuracy = []
+    model_loss = []
     for fold, (train_idx, val_idx) in enumerate(kfold.split(X = np.zeros(X_train2.shape[0]), y = y_train2.argmax(1))): # because split returns incidies we only need one
         # csv logs based on the time
-        csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) + '.csv', append=True, separator=';')
-        callbacks = [EarlyStopping(patience = 5), reduce_lr, csv_logger]
+        csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) +'_'+name + '.csv', append=True, separator=';')
+        reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.00001, verbose = 1)
+        checkpointer = ModelCheckpoint(filepath='./logs/kfold' + current_time + '/best_weights' + str(fold + 1) +'_'+name + .{epoch:02d}-{val_accuracy:.2f} + '.hdf5', verbose=1, save_best_only=True, monitor='val_accuracy', mode = 'max')
+        callbacks = [EarlyStopping(patience = 10), reduce_lr, csv_logger, checkpointer]
+        model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
         # get data
         X_train, X_train_mvm, y_train = X_train2[train_idx], X_train_mvm2[train_idx], y_train2[train_idx]
         X_val, X_val_mvm, y_val = X_train2[val_idx], X_train_mvm2[val_idx], y_train2[val_idx]
@@ -197,33 +250,49 @@ def evaluate_model(model):
     #    data_mvm.extend(X_val_mvm)
     #    data_y.extend(y_val)
         # fit model
-        print('Training fold ' + str(fold + 1) + ' of LRCN with augmentation...')
+        print('Training fold ' + str(fold + 1) + ' of ' + name + ' with augmentation...')
     #   model = define_model_LRCN()
-        model.save_weights('model.h5')
+        model.save_weights('model.h5')       
         history = model.fit(train_data,
               epochs = epochs,
               validation_data = val_data,
-              callbacks = callbacks)
-        model_accuracy.append(history.history['val_accuracy'])
+              callbacks = callbacks,
+              verbose = 0)
+        best_epoch = np.argmax(history.history['val_accuracy'])
+        model_accuracy.append(history.history['val_accuracy'][best_epoch])
+        model_loss.append(history.history['val_loss'][best_epoch])
         #preds = model.predict([X_val, X_val_mvm], batch_size = batch_size)[:, 0]
         #preds_lrcn.extend(preds)
         plots(history)
+        model.reset_states()
         model.load_weights('model.h5')
         gc.collect()
-    return model_accuracy
+    return np.asarray(model_accuracy).flatten(), np.asarray(model_loss).flatten()
 
 models = get_models()
 
-results, names = list(), list()
+box_acc, box_loss, names = list(), list(), list()
 
 for name, model in models.items():
-    val_acc = evaluate_model(model)
-    results.append(val_acc)
+    val_acc, val_loss = evaluate_model(model, name)
+    box_acc.append(val_acc)
+    box_loss.append(val_loss)
     names.append(name)
-    print(np.mean(results), np.std(results), sep = " ")
+    #print(np.mean(val_acc), np.std(val_acc), sep = " ")
 
-plt.boxplot(results, labels=names, showmeans=True)
-plt.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
+fig, (ax1, ax2) = plt.subplots(2, 1)
+
+ax1.boxplot(box_acc, labels = names, showmeans = True)
+ax2.set_title('val accuracy')
+ax2.set_ylabel('accuracy')
+ax2.set_xlabel('model')
+
+ax2.boxplot(box_loss, labels = names, showmeans = True)
+ax2.set_title('val loss')
+ax2.set_ylabel('loss')
+ax2.set_xlabel('model')
+
+fig.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
 
 
 
