@@ -239,7 +239,7 @@ def evaluate_model(model, name):
         # csv logs based on the time
         csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) +'_'+name + '.csv', append=True, separator=';')
         reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.00001, verbose = 1)
-        checkpointer = ModelCheckpoint(filepath='./logs/kfold' + current_time + '/best_weights' + str(fold + 1) +'_'+name + '{epoch:02d}-{val_accuracy:.2f}.hdf5', verbose=1, save_best_only=True, monitor='val_accuracy', mode = 'max')
+        checkpointer = ModelCheckpoint(filepath='./logs/kfold' + current_time + '/best_weights' + str(fold + 1) +'_'+name + '{epoch:02d}-{val_accuracy:.4f}.hdf5', verbose=1, save_best_only=True, monitor='val_accuracy', mode = 'max')
         callbacks = [EarlyStopping(patience = 10), reduce_lr, csv_logger, checkpointer]
         model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
         # get data
