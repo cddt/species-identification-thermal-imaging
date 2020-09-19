@@ -12,6 +12,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import gc
+import pickle
 
 def load(name):
     X = np.load("./cacophony-preprocessed" + name + ".npy")
@@ -20,7 +21,7 @@ def load(name):
     y_one_hot_encoded[range(y.shape[0]), y] = 1
     return X, y_one_hot_encoded
 
-def define_model_LRCN(h_1, h_2, d_1, d_2):
+def define_model_LRCN(h_1, h_2, d_1, d_2, d_3 = 0):
 
     compactCNN = Sequential()
     compactCNN.add(Conv2D(h_1, kernel_size=(3,3), activation="relu", input_shape=(24,24,3)))
@@ -216,10 +217,10 @@ def get_models():
     models['LRCN-medium'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5)
     models['LRCN-large'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5)
     models['LRCN-extralarge'] = define_model_LRCN(h_1 = 256, h_2 = 512, d_1 = 0.5, d_2 = 0.5)
-    models['LRCN-small'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
-    models['LRCN-medium'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
-    models['LRCN-large'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
-    models['LRCN-extralarge'] = define_model_LRCN(h_1 = 256, h_2 = 512, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-small, with recurrent dropout'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-medium, with recurrent dropout'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-large, with recurrent dropout'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
+    models['LRCN-extralarge, with recurrent dropout'] = define_model_LRCN(h_1 = 256, h_2 = 512, d_1 = 0.5, d_2 = 0.5, d_3 = 0.2)
     models['LRCN-small, no LSTM dropout'] = define_model_LRCN(h_1 = 32, h_2 = 64, d_1 = 0.5, d_2 = 0)
     models['LRCN-medium, no LSTM dropout'] = define_model_LRCN(h_1 = 64, h_2 = 128, d_1 = 0.5, d_2 = 0)
     models['LRCN-large, no LSTM dropout'] = define_model_LRCN(h_1 = 128, h_2 = 256, d_1 = 0.5, d_2 = 0)
@@ -238,7 +239,7 @@ def evaluate_model(model, name):
         # csv logs based on the time
         csv_logger = CSVLogger('./logs/kfold' + current_time + '/log_' + str(fold + 1) +'_'+name + '.csv', append=True, separator=';')
         reduce_lr = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.5, patience = 3, min_lr = 0.00001, verbose = 1)
-        checkpointer = ModelCheckpoint(filepath='./logs/kfold' + current_time + '/best_weights' + str(fold + 1) +'_'+name + .{epoch:02d}-{val_accuracy:.2f} + '.hdf5', verbose=1, save_best_only=True, monitor='val_accuracy', mode = 'max')
+        checkpointer = ModelCheckpoint(filepath='./logs/kfold' + current_time + '/best_weights' + str(fold + 1) +'_'+name + '{epoch:02d}-{val_accuracy:.2f}.hdf5', verbose=1, save_best_only=True, monitor='val_accuracy', mode = 'max')
         callbacks = [EarlyStopping(patience = 10), reduce_lr, csv_logger, checkpointer]
         model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_rate), metrics=["accuracy"])
         # get data
@@ -292,9 +293,14 @@ ax2.set_title('val loss')
 ax2.set_ylabel('loss')
 ax2.set_xlabel('model')
 
-fig.savefig('./logs/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
+fig.savefig('./logs/kfold' + current_time + '/plot_val_acc_cv' + current_time + '.svg', format = 'svg')
 
-
+with open('./logs/kfold' + current_time + '/plotdata_box_acc.csv', "wb") as fp:
+    pickle.dump(box_acc, fp)
+with open('./logs/kfold' + current_time + '/plotdata_box_loss.csv', "wb") as fp:
+    pickle.dump(box_loss, fp)
+with open('./logs/kfold' + current_time + '/plotdata_names.csv', "wb") as fp:
+    pickle.dump(names, fp)
 
 stopstopstop
 
