@@ -25,7 +25,7 @@ test_num = 1500
 
 f = h5py.File("/home/cddt/data-space/Cacophony/data1/dataset.hdf5", "r") # Read in the dataset
 d = f[list(f.keys())[0]]                                        # Access the thermal videos key
-clips = np.zeros([10664, 45, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
+clips = np.zeros([14157, 45, 3, 24, 24], dtype=np.float16)      # np.float16 saves storage space
 
 def get_best_index(vid):
     """
