@@ -8,7 +8,7 @@ import os
 
 """
 Discards videos missing a usable tag.
-Loops videos with fewer than 45 frames.
+Plays videos backwards if necessary to reach 45 frames.
 Trims the length of the videos to 45 frames.
 Interpolates each of the cropped frames to 24 x 24.
 Outputs 3 channels:
