@@ -46,7 +46,12 @@ def define_model_3DConv():
     vid_inputs = Input((45, 24, 24, 3))
     mvm_inputs = Input((45, 9))
     # CNN extracts 512 video features for each frame
-    vid_features = TimeDistributed(c3d)(vid_inputs)
+    vid_features = c3d(vid_inputs)
+    #vid_features = reshape()(vid_inputs)
+    vid_features = RepeatVector(45)(vid_features)
+    #vid_features = TimeDistributed(RepeatVector(45))(vid_features)
+    #vid_features = TimeDistributed(c3d)(vid_inputs)
+
     # LSTM extracts 512 movement features for each frame
     mvm_features = LSTM(512, return_sequences=True, dropout = 0.2, recurrent_dropout = 0.2)(mvm_inputs)
     # Concatenating for 1024 features for each frame
@@ -165,8 +170,9 @@ checkpointer = ModelCheckpoint(filepath='./logs/3DConv/best_model_' + current_ti
 # Training the model on the training set, with early stopping using the validation set
 callbacks = [EarlyStopping(patience = 10), reduce_lr, csv_logger, checkpointer]
 
-train_data = DataGenerator(X_train, X_train_mvm, y_train, batch_size, True, 0, 0, 0)
+train_data = DataGenerator(X_train, X_train_mvm, y_train, batch_size, False, 0, 0, 0)
 val_data = DataGenerator(X_val, X_val_mvm, y_val, batch_size)
+test_data = DataGenerator(X_test, X_test_mvm, y_test, batch_size)
 
 model = define_model_3DConv()
 
@@ -174,7 +180,7 @@ model.compile(loss='categorical_crossentropy', optimizer = Adam(lr = learning_ra
 
 print(model.summary())
 
-history = model.fit(train_data, epochs = epochs, batch_size = batch_size, shuffle = True, validation_data = val_data, callbacks = callbacks, verbose = 2)
+history = model.fit(train_data, epochs = epochs, batch_size = batch_size, shuffle = True, validation_data = val_data, callbacks = callbacks, verbose = 1)
 
 # plot training history
 # two plots
@@ -201,13 +207,13 @@ fig.savefig('./logs/3DConv/plot' + current_time + '.svg', format = 'svg')
 model.load_weights('./logs/3DConv/best_model_' + current_time + '.hdf5')
 
 # evalutate accuracy on hold out set
-eval_metrics = model.evaluate(X_test, X_test_mvm, y_test, verbose = 0)
+eval_metrics = model.evaluate(test_data, verbose = 0)
 for idx, metric in enumerate(model.metrics_names):
     if metric == 'accuracy':
         print(metric + ' on hold out set:', round(100 * eval_metrics[idx], 1), "%", sep = "")
 
 # Evaluating the final model on the test set
-y_pred = np.argmax(model.predict(X_test), axis = 1)
+y_pred = np.argmax(model.predict([X_test, X_test_mvm]), axis = 1)
 y_test = np.argmax(y_test, axis = 1)
 print(classification_report(y_test, y_pred))
 print(confusion_matrix(y_test, y_pred))

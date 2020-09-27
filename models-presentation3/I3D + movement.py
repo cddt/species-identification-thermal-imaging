@@ -665,7 +665,8 @@ class DataGenerator(Sequence):
     def __getitem__(self, index):
         indices = self.indices[index * self.batch_size:(index + 1) * self.batch_size]
         vids = np.array(self.vids[indices])
-        x, y = np.meshgrid(range(vids.shape[2]), range(vids.shape[3]))
+        #x, y = np.meshgrid(range(vids.shape[2]), range(vids.shape[3]))
+        x, y = np.meshgrid(np.arange(32)*0.75, np.arange(32)*0.75)
         if self.crop:
             x, y = self.random_zoom(vids, x, y)
         if self.angle:
@@ -754,7 +755,7 @@ for idx, metric in enumerate(model.metrics_names):
         print(metric + ' on hold out set:', round(100 * eval_metrics[idx], 1), "%", sep = "")
 
 # Evaluating the final model on the test set
-y_pred = np.argmax(model.predict(X_test), axis = 1)
+y_pred = np.argmax(model.predict([X_test, X_test_mvm]), axis = 1)
 y_test = np.argmax(y_test, axis = 1)
 print(classification_report(y_test, y_pred))
 print(confusion_matrix(y_test, y_pred))
